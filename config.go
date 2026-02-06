@@ -182,6 +182,23 @@ func (cfg *Config) SetWasmComponentModelErrorContext(enabled bool) {
 	runtime.KeepAlive(cfg)
 }
 
+// SetWasmComponentModelAsyncStackful configures whether the WebAssembly
+// component model async stackful feature is enabled. This enables support for
+// stackful coroutines in the component model async proposal, allowing
+// components to use thread.spawn and thread.yield.
+func (cfg *Config) SetWasmComponentModelAsyncStackful(enabled bool) {
+	C.wasmtime_config_wasm_component_model_async_stackful_set(cfg.ptr(), C.bool(enabled))
+	runtime.KeepAlive(cfg)
+}
+
+// SetWasmComponentModelAsyncBuiltins configures whether the WebAssembly
+// component model async builtins feature is enabled. This enables support for
+// async builtin operations like subtask.cancel in the component model.
+func (cfg *Config) SetWasmComponentModelAsyncBuiltins(enabled bool) {
+	C.wasmtime_config_wasm_component_model_async_builtins_set(cfg.ptr(), C.bool(enabled))
+	runtime.KeepAlive(cfg)
+}
+
 // SetConsumeFuel configures whether fuel is enabled
 func (cfg *Config) SetConsumeFuel(enabled bool) {
 	C.wasmtime_config_consume_fuel_set(cfg.ptr(), C.bool(enabled))

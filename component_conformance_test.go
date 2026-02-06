@@ -1535,8 +1535,7 @@ func TestConformanceResourcesRepExemptFromMayLeave(t *testing.T) {
 	// with the async component model config enabled. Without it, calling
 	// resource.rep in the post-return function triggers "cannot leave component
 	// instance". Skip if async is not available.
-	t.Skip("requires component_model_async = true, which is not enabled in the default Go bindings engine config")
-	engine := newComponentEngine()
+	engine := newAsyncComponentEngine()
 	store := NewStore(engine)
 
 	wat := `

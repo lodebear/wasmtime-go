@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -154,6 +156,215 @@ func addAsyncSleepMillis(t *testing.T, linker *ComponentLinker) {
 	})
 }
 
+// readyThingState tracks the state of a "thing" resource for the local:local/ready
+// interface. Each resource instance has an atomic ready flag.
+type readyThingState struct {
+	mu    sync.Mutex
+	ready map[uint32]*atomic.Bool // rep -> ready flag
+	next  uint32
+}
+
+func newReadyThingState() *readyThingState {
+	return &readyThingState{
+		ready: make(map[uint32]*atomic.Bool),
+	}
+}
+
+func (s *readyThingState) create() uint32 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	rep := s.next
+	s.next++
+	s.ready[rep] = &atomic.Bool{}
+	return rep
+}
+
+func (s *readyThingState) setReady(rep uint32, ready bool) {
+	s.mu.Lock()
+	flag, ok := s.ready[rep]
+	s.mu.Unlock()
+	if ok {
+		flag.Store(ready)
+	}
+}
+
+func (s *readyThingState) isReady(rep uint32) bool {
+	s.mu.Lock()
+	flag, ok := s.ready[rep]
+	s.mu.Unlock()
+	if ok {
+		return flag.Load()
+	}
+	return true // default to ready if unknown rep
+}
+
+func (s *readyThingState) destroy(rep uint32) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.ready, rep)
+}
+
+// addReadyResource adds the local:local/ready interface with the "thing" resource
+// to the linker. The resource has a constructor, set-ready method, and async
+// when-ready method.
+func addReadyResource(t *testing.T, linker *ComponentLinker) *readyThingState {
+	t.Helper()
+	state := newReadyThingState()
+	resType := NewComponentResourceType(42) // arbitrary type ID for "thing"
+	t.Cleanup(func() { resType.Close() })
+
+	linker.Root(func(root *ComponentLinkerInstance) {
+		err := root.AddInstance("local:local/ready", func(inst *ComponentLinkerInstance) {
+			// Register the resource type with its destructor
+			err := inst.AddResource("thing", resType, func(caller Storelike, rep uint32) error {
+				state.destroy(rep)
+				return nil
+			})
+			require.NoError(t, err)
+
+			// Constructor: [constructor]thing() -> own<thing>
+			// The constructor takes no args and returns an own<thing> (resource handle).
+			// The runtime creates the resource from the returned rep.
+			err = inst.AddFunc("[constructor]thing", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				rep := state.create()
+				rh := NewComponentResourceHost(true, rep, 42)
+				defer rh.Close()
+				ra, raErr := rh.ToAny(caller)
+				if raErr != nil {
+					return raErr
+				}
+				results[0] = NewComponentValResource(ra)
+				ra.Close()
+				return nil
+			})
+			require.NoError(t, err)
+
+			// Method: [method]thing.set-ready(borrow<thing>, ready: bool) -> ()
+			err = inst.AddFunc("[method]thing.set-ready", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				ra := args[0].ResourceAny()
+				rh, rhErr := ra.ToHost(caller)
+				if rhErr != nil {
+					return rhErr
+				}
+				defer rh.Close()
+				rep := rh.Rep()
+				ready := args[1].Bool()
+				state.setReady(rep, ready)
+				return nil
+			})
+			require.NoError(t, err)
+
+			// Async method: [method]thing.when-ready(borrow<thing>) -> ()
+			// Returns immediately (our async trampoline is "always ready").
+			// For the yield_caller test which uses wit-bindgen async, this works
+			// because the caller's poll_fn logic handles immediate completion.
+			err = inst.AddFuncAsync("[method]thing.when-ready", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				// No results to set -- when-ready returns ()
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+	})
+	return state
+}
+
+// addContinueInterface adds the local:local/continue interface with set-continue
+// and get-continue functions.
+func addContinueInterface(t *testing.T, linker *ComponentLinker) {
+	t.Helper()
+	var cont bool
+	linker.Root(func(root *ComponentLinkerInstance) {
+		err := root.AddInstance("local:local/continue", func(inst *ComponentLinkerInstance) {
+			err := inst.AddFunc("set-continue", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				cont = args[0].Bool()
+				return nil
+			})
+			require.NoError(t, err)
+			err = inst.AddFunc("get-continue", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				results[0] = NewComponentValBool(cont)
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+	})
+}
+
+// addRunInterface adds the local:local/run interface with `run: async func()`.
+func addRunInterface(t *testing.T, linker *ComponentLinker) {
+	t.Helper()
+	linker.Root(func(root *ComponentLinkerInstance) {
+		err := root.AddInstance("local:local/run", func(inst *ComponentLinkerInstance) {
+			err := inst.AddFuncAsync("run", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+	})
+}
+
+// addBorrowingTypesResource adds the local:local/borrowing-types interface with the "x" resource.
+// The resource has a constructor and a foo method.
+func addBorrowingTypesResource(t *testing.T, linker *ComponentLinker) {
+	t.Helper()
+	resType := NewComponentResourceType(99) // arbitrary type ID for "x"
+	t.Cleanup(func() { resType.Close() })
+
+	var nextRep uint32
+
+	linker.Root(func(root *ComponentLinkerInstance) {
+		err := root.AddInstance("local:local/borrowing-types", func(inst *ComponentLinkerInstance) {
+			// Register the resource type
+			err := inst.AddResource("x", resType, func(caller Storelike, rep uint32) error {
+				return nil // destructor: no-op
+			})
+			require.NoError(t, err)
+
+			// Constructor: [constructor]x() -> own<x>
+			err = inst.AddFunc("[constructor]x", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				rep := nextRep
+				nextRep++
+				rh := NewComponentResourceHost(true, rep, 99)
+				defer rh.Close()
+				ra, raErr := rh.ToAny(caller)
+				if raErr != nil {
+					return raErr
+				}
+				results[0] = NewComponentValResource(ra)
+				ra.Close()
+				return nil
+			})
+			require.NoError(t, err)
+
+			// Method: [method]x.foo(borrow<x>) -> ()
+			err = inst.AddFunc("[method]x.foo", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				// No-op: just verify we can access the borrowed resource
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+	})
+}
+
+// addBorrowingInterface adds the local:local/borrowing interface with
+// `foo: async func(x: borrow<x>, misbehave: bool)`.
+func addBorrowingInterface(t *testing.T, linker *ComponentLinker) {
+	t.Helper()
+	linker.Root(func(root *ComponentLinkerInstance) {
+		err := root.AddInstance("local:local/borrowing", func(inst *ComponentLinkerInstance) {
+			err := inst.AddFuncAsync("foo", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				// No-op: the async function just returns successfully
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+	})
+}
+
 // --- Round-trip tests ---
 // These import local:local/baz with `foo: async func(s: string) -> string`.
 // We use AddFuncAsync to provide a simple echo implementation.
@@ -166,7 +377,10 @@ func TestAsyncRoundTripSynchronous(t *testing.T) {
 }
 
 func TestAsyncRoundTripStackful(t *testing.T) {
-	t.Skip("component requires the component model async stackful feature not available in this wasmtime build")
+	_, store, linker, component := setupAsyncWasiComponent(t, "async_round_trip_stackful")
+	addAsyncBazFoo(t, linker)
+	err := callWasiRunAsync(t, store, linker, component)
+	require.NoError(t, err)
 }
 
 func TestAsyncRoundTripStackless(t *testing.T) {
@@ -207,7 +421,10 @@ func TestAsyncRoundTripManySynchronous(t *testing.T) {
 }
 
 func TestAsyncRoundTripManyStackful(t *testing.T) {
-	t.Skip("component requires the component model async stackful feature not available in this wasmtime build")
+	_, store, linker, component := setupAsyncWasiComponent(t, "async_round_trip_many_stackful")
+	addAsyncManyFoo(t, linker)
+	err := callWasiRunAsync(t, store, linker, component)
+	require.NoError(t, err)
 }
 
 func TestAsyncRoundTripManyStackless(t *testing.T) {
@@ -270,7 +487,21 @@ func TestAsyncYieldCalleeStackless(t *testing.T) {
 }
 
 func TestAsyncYieldCalleeSynchronous(t *testing.T) {
-	t.Skip("component requires async stackful feature (thread.yield) not available in this wasmtime build")
+	_, store, linker, component := setupAsyncWasiComponent(t, "async_yield_callee_synchronous")
+
+	linker.Root(func(root *ComponentLinkerInstance) {
+		err := root.AddInstance("local:local/continue", func(inst *ComponentLinkerInstance) {
+			err := inst.AddFunc("get-continue", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				results[0] = NewComponentValBool(true)
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+	})
+
+	err := callWasiRunAsync(t, store, linker, component)
+	require.NoError(t, err)
 }
 
 // --- Backpressure caller ---
@@ -316,7 +547,14 @@ func TestAsyncBackpressureCaller(t *testing.T) {
 // async_yield_caller_cancel imports set-continue (sync) + run: async func()
 
 func TestAsyncYieldCaller(t *testing.T) {
-	t.Skip("requires resource imports (local:local/ready thing) with constructor and async method not satisfiable yet")
+	_, store, linker, component := setupAsyncWasiComponent(t, "async_yield_caller")
+
+	addReadyResource(t, linker)
+	addContinueInterface(t, linker)
+	addRunInterface(t, linker)
+
+	err := callWasiRunAsync(t, store, linker, component)
+	require.NoError(t, err)
 }
 
 func TestAsyncYieldCallerCancel(t *testing.T) {
@@ -407,11 +645,21 @@ func TestAsyncSleepPostReturnCaller(t *testing.T) {
 // --- Poll tests (require resource imports) ---
 
 func TestAsyncPollStackless(t *testing.T) {
-	t.Skip("requires resource imports (local:local/ready thing) with constructor and async method")
+	_, store, linker, component := setupAsyncWasiComponent(t, "async_poll_stackless")
+
+	addReadyResource(t, linker)
+
+	err := callWasiRunAsync(t, store, linker, component)
+	require.NoError(t, err)
 }
 
 func TestAsyncPollSynchronous(t *testing.T) {
-	t.Skip("requires resource imports (local:local/ready thing) with constructor and async method")
+	_, store, linker, component := setupAsyncWasiComponent(t, "async_poll_synchronous")
+
+	addReadyResource(t, linker)
+
+	err := callWasiRunAsync(t, store, linker, component)
+	require.NoError(t, err)
 }
 
 // --- Readiness test ---
@@ -491,15 +739,15 @@ func TestAsyncCancelTransmit(t *testing.T) {
 // --- Caller tests that import custom async interfaces with stream/future types ---
 
 func TestAsyncReadResourceStream(t *testing.T) {
-	t.Skip("imports local:local/resource-stream with async func returning stream<resource> not satisfiable via Go bindings")
+	t.Skip("requires stream<resource> val type which is not exposed in the wasmtime C API (wasmtime_component_val_t has no stream/future variants)")
 }
 
 func TestAsyncUnitStreamCaller(t *testing.T) {
-	t.Skip("imports local:local/unit-stream with async func returning stream type not satisfiable via Go bindings")
+	t.Skip("requires stream val type which is not exposed in the wasmtime C API (wasmtime_component_val_t has no stream/future variants)")
 }
 
 func TestAsyncTransmitCaller(t *testing.T) {
-	t.Skip("imports local:local/transmit with async func using stream/future types not satisfiable via Go bindings")
+	t.Skip("requires stream/future val types which are not exposed in the wasmtime C API (wasmtime_component_val_t has no stream/future variants)")
 }
 
 // --- Cancel tests ---
@@ -526,15 +774,71 @@ func TestAsyncCancelCallee(t *testing.T) {
 }
 
 func TestAsyncCancelCaller(t *testing.T) {
-	t.Skip("component requires async subtask.cancel which needs the component model async builtins feature not available in this wasmtime build")
+	_, store, linker, component := setupAsyncWasiComponent(t, "async_cancel_caller")
+
+	linker.Root(func(root *ComponentLinkerInstance) {
+		// local:local/backpressure has sync functions
+		err := root.AddInstance("local:local/backpressure", func(inst *ComponentLinkerInstance) {
+			err := inst.AddFunc("inc-backpressure", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				return nil
+			})
+			require.NoError(t, err)
+			err = inst.AddFunc("dec-backpressure", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+
+		// local:local/sleep has async sleep-millis
+		err = root.AddInstance("local:local/sleep", func(inst *ComponentLinkerInstance) {
+			err := inst.AddFuncAsync("sleep-millis", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+
+		// local:local/cancel has variant mode type + run: async func(mode, u64)
+		err = root.AddInstance("local:local/cancel", func(inst *ComponentLinkerInstance) {
+			err := inst.AddFuncAsync("run", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+
+		// local:local/sleep-with-options has async sleep-millis(u64, on-cancel, u64, bool, mode)
+		err = root.AddInstance("local:local/sleep-with-options", func(inst *ComponentLinkerInstance) {
+			err := inst.AddFuncAsync("sleep-millis", func(caller Storelike, args []ComponentVal, results []ComponentVal) error {
+				return nil
+			})
+			require.NoError(t, err)
+		})
+		require.NoError(t, err)
+	})
+
+	err := callWasiRunAsync(t, store, linker, component)
+	require.NoError(t, err)
 }
 
 // --- Borrowing tests ---
 
 func TestAsyncBorrowingCallee(t *testing.T) {
-	t.Skip("borrowing tests require resource borrowing across async boundaries not yet available in Go bindings")
+	_, store, linker, component := setupAsyncWasiComponent(t, "async_borrowing_callee")
+
+	addBorrowingTypesResource(t, linker)
+
+	err := callWasiRunAsync(t, store, linker, component)
+	require.NoError(t, err)
 }
 
 func TestAsyncBorrowingCaller(t *testing.T) {
-	t.Skip("borrowing tests require resource borrowing across async boundaries not yet available in Go bindings")
+	_, store, linker, component := setupAsyncWasiComponent(t, "async_borrowing_caller")
+
+	addBorrowingTypesResource(t, linker)
+	addBorrowingInterface(t, linker)
+
+	err := callWasiRunAsync(t, store, linker, component)
+	require.NoError(t, err)
 }

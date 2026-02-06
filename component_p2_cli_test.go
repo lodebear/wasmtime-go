@@ -505,7 +505,48 @@ func TestP2CliStdioWriteFlushes(t *testing.T) {
 }
 
 func TestP2CliInvokeAsync(t *testing.T) {
-	t.Skip("invoke_async requires component-model-async which is not available via the C API")
+	wasmBytes, err := os.ReadFile("testdata/components/p2_cli_invoke_async.component.wasm")
+	require.NoError(t, err)
+
+	engine := newAsyncComponentEngine()
+	store := NewStore(engine)
+	wasiConfig := NewWasiConfig()
+	err = store.SetWasi(wasiConfig)
+	require.NoError(t, err)
+
+	linker := NewComponentLinker(engine)
+	defer linker.Close()
+	err = linker.AddWasip2()
+	require.NoError(t, err)
+
+	component, err := NewComponent(engine, wasmBytes)
+	require.NoError(t, err)
+	defer component.Close()
+
+	// The component exports echo:echo/echo (async func(string) -> string)
+	instance, err := linker.InstantiateAsync(store, component)
+	require.NoError(t, err)
+
+	// Find the "echo" export in the "echo" interface
+	echoIdx := component.GetExportIndex(nil, "echo")
+	if echoIdx == nil {
+		t.Skip("component does not export 'echo' at root level")
+	}
+	defer echoIdx.Close()
+
+	innerIdx := component.GetExportIndex(echoIdx, "echo")
+	if innerIdx == nil {
+		t.Skip("component does not export 'echo' function in echo interface")
+	}
+	defer innerIdx.Close()
+
+	fn := instance.GetFunc(store, innerIdx)
+	require.NotNil(t, fn)
+
+	results, err := fn.CallAsync(store, []ComponentVal{NewComponentValString("hello async")})
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "hello async", results[0].String())
 }
 
 // --- HTTP Serve tests (skip — require wasi:http handler, not wasi:cli/run) ---

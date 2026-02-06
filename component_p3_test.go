@@ -303,66 +303,70 @@ func TestP3HttpProxy(t *testing.T) {
 	t.Skip("P3 HTTP tests require wasi-http trigger infrastructure not available in Go bindings")
 }
 
-// --- Socket tests (skip — require network infrastructure) ---
+// --- Socket tests ---
+// P3 socket operations require a Tokio runtime in the host WASI implementation,
+// which is not available when running through the C API without an async executor.
+// The P3 WASI host delegates to tokio::net which panics with "there is no reactor
+// running" when called outside a Tokio context.
 
 func TestP3SocketsIpNameLookup(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsTcpBind(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsTcpConnect(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsTcpListen(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsTcpSampleApplication(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsTcpSockopts(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsTcpStates(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsTcpStreams(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsUdpBind(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsUdpConnect(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsUdpReceive(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsUdpSampleApplication(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsUdpSend(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsUdpSockopts(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 func TestP3SocketsUdpStates(t *testing.T) {
-	t.Skip("P3 socket tests require network infrastructure not available in Go bindings")
+	t.Skip("P3 socket tests require Tokio runtime not available through the C API's WASI host implementation")
 }
 
 // --- Serve tests (skip — require HTTP trigger infrastructure) ---

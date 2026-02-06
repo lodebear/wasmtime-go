@@ -22,6 +22,8 @@ func newAsyncComponentEngine() *Engine {
 	config.SetAsyncSupport(true)
 	config.SetWasmComponentModelAsync(true)
 	config.SetWasmComponentModelErrorContext(true)
+	config.SetWasmComponentModelAsyncStackful(true)
+	config.SetWasmComponentModelAsyncBuiltins(true)
 	return NewEngineWithConfig(config)
 }
 

@@ -150,6 +150,17 @@ func (l *ComponentLinker) AddWasip3() error {
 	return nil
 }
 
+// AddWasiHttp adds WASI HTTP interfaces to the linker.
+// This enables components to make outbound HTTP requests using wasi:http.
+func (l *ComponentLinker) AddWasiHttp() error {
+	err := C.wasmtime_component_linker_add_wasi_http(l.ptr())
+	runtime.KeepAlive(l)
+	if err != nil {
+		return mkError(err)
+	}
+	return nil
+}
+
 // DefineUnknownImportsAsTraps defines all unknown imports of `component` as
 // functions that immediately trap when called.
 func (l *ComponentLinker) DefineUnknownImportsAsTraps(component *Component) error {

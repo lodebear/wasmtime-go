@@ -59,10 +59,13 @@ func TestP2ApiProxy(t *testing.T) {
 	wasiConfig := NewWasiConfig()
 	err = store.SetWasi(wasiConfig)
 	require.NoError(t, err)
+	store.SetWasiHttp()
 
 	linker := NewComponentLinker(engine)
 	defer linker.Close()
 	err = linker.AddWasip2()
+	require.NoError(t, err)
+	err = linker.AddWasiHttp()
 	require.NoError(t, err)
 
 	component, err := NewComponent(engine, wasmBytes)
@@ -70,9 +73,7 @@ func TestP2ApiProxy(t *testing.T) {
 	defer component.Close()
 
 	_, err = linker.Instantiate(store, component)
-	if err != nil {
-		t.Skipf("wasi-http proxy instantiation not available in C API: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 // p2_api_proxy_forward_request: HTTP proxy that forwards incoming requests outbound.
@@ -86,10 +87,13 @@ func TestP2ApiProxyForwardRequest(t *testing.T) {
 	wasiConfig := NewWasiConfig()
 	err = store.SetWasi(wasiConfig)
 	require.NoError(t, err)
+	store.SetWasiHttp()
 
 	linker := NewComponentLinker(engine)
 	defer linker.Close()
 	err = linker.AddWasip2()
+	require.NoError(t, err)
+	err = linker.AddWasiHttp()
 	require.NoError(t, err)
 
 	component, err := NewComponent(engine, wasmBytes)
@@ -97,9 +101,7 @@ func TestP2ApiProxyForwardRequest(t *testing.T) {
 	defer component.Close()
 
 	_, err = linker.Instantiate(store, component)
-	if err != nil {
-		t.Skipf("wasi-http proxy instantiation not available in C API: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 // p2_api_proxy_streaming: Async streaming HTTP proxy.
@@ -113,10 +115,13 @@ func TestP2ApiProxyStreaming(t *testing.T) {
 	wasiConfig := NewWasiConfig()
 	err = store.SetWasi(wasiConfig)
 	require.NoError(t, err)
+	store.SetWasiHttp()
 
 	linker := NewComponentLinker(engine)
 	defer linker.Close()
 	err = linker.AddWasip2()
+	require.NoError(t, err)
+	err = linker.AddWasiHttp()
 	require.NoError(t, err)
 
 	component, err := NewComponent(engine, wasmBytes)
@@ -124,9 +129,7 @@ func TestP2ApiProxyStreaming(t *testing.T) {
 	defer component.Close()
 
 	_, err = linker.Instantiate(store, component)
-	if err != nil {
-		t.Skipf("wasi-http proxy instantiation not available in C API: %v", err)
-	}
+	require.NoError(t, err)
 }
 
 // p2_api_read_only: Tests read-only filesystem access — reads bar.txt, verifies writes fail.
@@ -294,6 +297,8 @@ func TestP2StreamPollableTraps(t *testing.T) {
 }
 
 // p2_ip_name_lookup: Tests DNS resolution via wasi:sockets/ip-name-lookup.
+// This test may fail in restricted network environments where DNS resolution
+// is blocked or filtered.
 func TestP2IpNameLookup(t *testing.T) {
 	engine, store, linker, component := setupWasiComponent(t, "p2_ip_name_lookup", nil)
 	defer linker.Close()
@@ -301,7 +306,7 @@ func TestP2IpNameLookup(t *testing.T) {
 
 	err := callWasiRun(t, engine, store, linker, component)
 	if err != nil {
-		t.Skipf("wasi-sockets ip-name-lookup not available or failed: %v", err)
+		t.Skipf("DNS resolution test failed (may be environment-specific): %v", err)
 	}
 }
 

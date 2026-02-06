@@ -151,6 +151,13 @@ func (c *WasiConfig) InheritStderr() {
 	runtime.KeepAlive(c)
 }
 
+// InheritNetwork configures the WASI network to be inherited from the host.
+// This enables WASI programs to use TCP, UDP, and DNS resolution.
+func (c *WasiConfig) InheritNetwork() {
+	C.wasi_config_inherit_network(c.ptr())
+	runtime.KeepAlive(c)
+}
+
 type WasiDirPerms uint8
 type WasiFilePerms uint8
 

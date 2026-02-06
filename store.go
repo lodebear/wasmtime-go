@@ -316,6 +316,15 @@ func (store *Store) SetFuel(fuel uint64) error {
 	return nil
 }
 
+// SetWasiHttp initializes the WASI HTTP context for this store.
+//
+// This must be called before using any WASI HTTP interfaces. The store
+// must also have WASI configured via SetWasi before calling this method.
+func (store *Store) SetWasiHttp() {
+	C.wasmtime_context_set_wasi_http(store.Context())
+	runtime.KeepAlive(store)
+}
+
 // Limiter provides limits for a store. Used by hosts to limit resource
 // consumption of instances. Use negative value to keep the default value
 // for the limit.
