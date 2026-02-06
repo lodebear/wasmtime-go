@@ -141,12 +141,16 @@ func (store *Store) GC() {
 //
 // The `wasi` argument cannot be reused for another `Store`, it's consumed by
 // this function.
-func (store *Store) SetWasi(wasi *WasiConfig) {
+func (store *Store) SetWasi(wasi *WasiConfig) error {
 	runtime.SetFinalizer(wasi, nil)
 	ptr := wasi.ptr()
 	wasi._ptr = nil
-	C.wasmtime_context_set_wasi(store.Context(), ptr)
+	err := C.wasmtime_context_set_wasi(store.Context(), ptr)
 	runtime.KeepAlive(store)
+	if err != nil {
+		return mkError(err)
+	}
+	return nil
 }
 
 // Implementation of the `Storelike` interface

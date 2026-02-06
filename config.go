@@ -149,6 +149,39 @@ func (cfg *Config) SetWasmWideArithmetic(enabled bool) {
 	runtime.KeepAlive(cfg)
 }
 
+// SetWasmComponentModel configures whether the WebAssembly Component Model
+// proposal is enabled.
+func (cfg *Config) SetWasmComponentModel(enabled bool) {
+	C.wasmtime_config_wasm_component_model_set(cfg.ptr(), C.bool(enabled))
+	runtime.KeepAlive(cfg)
+}
+
+// SetAsyncSupport configures whether async support is enabled.
+//
+// This is deprecated in newer wasmtime versions but may still be needed
+// for compatibility.
+func (cfg *Config) SetAsyncSupport(enabled bool) {
+	C.wasmtime_config_async_support_set(cfg.ptr(), C.bool(enabled))
+	runtime.KeepAlive(cfg)
+}
+
+// SetWasmComponentModelAsync configures whether the WebAssembly component
+// model async proposal is enabled. This enables support for the async ABI
+// including future, stream, and error-context types.
+func (cfg *Config) SetWasmComponentModelAsync(enabled bool) {
+	C.wasmtime_config_wasm_component_model_async_set(cfg.ptr(), C.bool(enabled))
+	runtime.KeepAlive(cfg)
+}
+
+// SetWasmComponentModelErrorContext configures whether the WebAssembly
+// component model error-context feature is enabled. This enables support for
+// error-context types in the component model. Requires the
+// component-model-async feature to be enabled.
+func (cfg *Config) SetWasmComponentModelErrorContext(enabled bool) {
+	C.wasmtime_config_wasm_component_model_error_context_set(cfg.ptr(), C.bool(enabled))
+	runtime.KeepAlive(cfg)
+}
+
 // SetConsumeFuel configures whether fuel is enabled
 func (cfg *Config) SetConsumeFuel(enabled bool) {
 	C.wasmtime_config_consume_fuel_set(cfg.ptr(), C.bool(enabled))

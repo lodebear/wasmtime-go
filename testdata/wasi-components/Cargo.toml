@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "cli-stdout",
+    "cli-stderr",
+    "cli-args",
+    "cli-env",
+    "cli-stdin-echo",
+    "fs-read",
+    "fs-write",
+    "clock-now",
+    "random-bytes",
+    "exit-code",
+]
+resolver = "2"
