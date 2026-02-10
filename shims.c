@@ -67,6 +67,24 @@ bool go_externref_new(wasmtime_context_t *cx, size_t env, wasmtime_externref_t *
   return wasmtime_externref_new(cx, (void*) env, goFinalizeExternref, ref);
 }
 
+// Configure WASI stdout/stderr to be forwarded to Go via callbacks.
+//
+// This is implemented in C to avoid having to pass function pointers from Go
+// to C/Rust, which is not supported by cgo.
+void go_wasi_config_set_stdout_custom(wasi_config_t *config, size_t env) {
+  wasi_config_set_stdout_custom(
+      config,
+      (ptrdiff_t (*)(void *, const unsigned char *, size_t))goWasiOutputWrite,
+      (void *)env, goFinalizeWasiOutput);
+}
+
+void go_wasi_config_set_stderr_custom(wasi_config_t *config, size_t env) {
+  wasi_config_set_stderr_custom(
+      config,
+      (ptrdiff_t (*)(void *, const unsigned char *, size_t))goWasiOutputWrite,
+      (void *)env, goFinalizeWasiOutput);
+}
+
 #define UNION_ACCESSOR(name, field, ty) \
   ty go_##name##_##field##_get(const name##_t *val) { return val->of.field; } \
   void go_##name##_##field##_set(name##_t *val, ty i) { val->of.field = i; }

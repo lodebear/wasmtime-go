@@ -46,6 +46,7 @@ func setupP2CliBasic(t *testing.T, wasmBytes []byte, wasiConfig *WasiConfig) (*E
 func TestP2CliHelloStdout(t *testing.T) {
 	wasmBytes := loadP2CliComponent(t, "p2_cli_hello_stdout")
 
+	// Legacy coverage: capture stdout/stderr via temp files.
 	tmpDir := t.TempDir()
 	stdoutFile := filepath.Join(tmpDir, "stdout.txt")
 	stderrFile := filepath.Join(tmpDir, "stderr.txt")
@@ -66,6 +67,25 @@ func TestP2CliHelloStdout(t *testing.T) {
 	stderr, err := os.ReadFile(stderrFile)
 	require.NoError(t, err)
 	require.Contains(t, string(stderr), "hello, world")
+}
+
+func TestP2CliHelloStdout_CustomWriter(t *testing.T) {
+	wasmBytes := loadP2CliComponent(t, "p2_cli_hello_stdout")
+
+	stdout := NewMemoryOutputPipe(1024)
+	stderr := NewMemoryOutputPipe(1024)
+
+	wasiConfig := NewWasiConfig()
+	wasiConfig.SetStdoutWriter(stdout)
+	wasiConfig.SetStderrWriter(stderr)
+
+	engine, store, linker, component := setupP2CliBasic(t, wasmBytes, wasiConfig)
+
+	err := callWasiRun(t, engine, store, linker, component)
+	require.NoError(t, err)
+
+	require.Contains(t, stdout.String(), "hello, world")
+	require.Contains(t, stderr.String(), "hello, world")
 }
 
 func TestP2CliMuchStdout(t *testing.T) {
@@ -91,6 +111,47 @@ func TestP2CliMuchStdout(t *testing.T) {
 	stdout, err := os.ReadFile(stdoutFile)
 	require.NoError(t, err)
 	require.Equal(t, expectedLen, len(stdout))
+}
+
+func TestP2CliMuchStdout_CustomWriter(t *testing.T) {
+	wasmBytes := loadP2CliComponent(t, "p2_cli_much_stdout")
+
+	// Write a string of 1024 'a' chars, 256 times = 262144 bytes
+	stringToWrite := strings.Repeat("a", 1024)
+	timesToWrite := "256"
+	expectedLen := 1024 * 256
+
+	stdout := NewMemoryOutputPipe(expectedLen)
+
+	wasiConfig := NewWasiConfig()
+	wasiConfig.SetArgv([]string{"test", stringToWrite, timesToWrite})
+	wasiConfig.SetStdoutWriter(stdout)
+
+	engine, store, linker, component := setupP2CliBasic(t, wasmBytes, wasiConfig)
+
+	err := callWasiRun(t, engine, store, linker, component)
+	require.NoError(t, err)
+	require.Equal(t, expectedLen, stdout.Len())
+}
+
+func TestP2CliMuchStdout_CustomWriterOverflow(t *testing.T) {
+	wasmBytes := loadP2CliComponent(t, "p2_cli_much_stdout")
+
+	// Write a string of 1024 'a' chars, 256 times = 262144 bytes
+	stringToWrite := strings.Repeat("a", 1024)
+	timesToWrite := "256"
+	expectedLen := 1024 * 256
+
+	stdout := NewMemoryOutputPipe(expectedLen - 1)
+
+	wasiConfig := NewWasiConfig()
+	wasiConfig.SetArgv([]string{"test", stringToWrite, timesToWrite})
+	wasiConfig.SetStdoutWriter(stdout)
+
+	engine, store, linker, component := setupP2CliBasic(t, wasmBytes, wasiConfig)
+
+	err := callWasiRun(t, engine, store, linker, component)
+	require.Error(t, err)
 }
 
 // --- Argument tests ---
@@ -171,7 +232,6 @@ func TestP2CliLargeEnv(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(stdout), "KEY0=")
 }
-
 
 // --- Exit code tests ---
 

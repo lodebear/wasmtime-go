@@ -1,5 +1,6 @@
 #include <wasm.h>
 #include <wasmtime.h>
+#include <wasi.h>
 
 wasmtime_store_t *go_store_new(wasm_engine_t *engine, size_t env);
 void go_func_new(wasmtime_context_t *context, wasm_functype_t *ty, size_t env, int wrap,  wasmtime_func_t *ret);
@@ -14,6 +15,10 @@ wasmtime_error_t *go_linker_define_func(
     size_t env
 );
 bool go_externref_new(wasmtime_context_t *cx, size_t env, wasmtime_externref_t *ref);
+
+// Helpers for configuring WASI custom stdout/stderr writers from Go.
+void go_wasi_config_set_stdout_custom(wasi_config_t *config, size_t env);
+void go_wasi_config_set_stderr_custom(wasi_config_t *config, size_t env);
 
 #define EACH_UNION_ACCESSOR(name) \
   UNION_ACCESSOR(wasmtime_val, i32, int32_t) \

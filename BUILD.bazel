@@ -45,6 +45,7 @@ go_library(
         "val.go",
         "valtype.go",
         "wasi.go",
+        "wasi_custom_output.go",
         "wat2wasm.go",
     ],
     cdeps = [":wasmtime"],  # add wasmtime dep
