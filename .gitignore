@@ -1,3 +1,9 @@
 build
 /bazel-*
 test-vendoring-project
+
+# Local test binaries
+/wasmtime-go.test
+
+# Rust build artifacts from generating test components
+/testdata/wasi-components/**/target/
