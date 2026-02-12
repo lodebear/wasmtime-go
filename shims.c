@@ -1,5 +1,7 @@
 #include "_cgo_export.h"
 #include "shims.h"
+#include <stdlib.h>
+#include <string.h>
 
 wasmtime_store_t *go_store_new(wasm_engine_t *engine, size_t env) {
   return wasmtime_store_new(engine, (void*) env, goFinalizeStore);
@@ -272,6 +274,76 @@ wasmtime_error_t *go_component_linker_instance_add_resource(
         resource,
         component_resource_dtor_trampoline, (void*) env,
         goFinalizeComponentResourceDtor);
+}
+
+static wasmtime_error_t *go_unsupported_feature_error(const char *feature) {
+    const char *prefix = "feature not available in linked Wasmtime: ";
+    size_t prefix_len = strlen(prefix);
+    size_t feature_len = strlen(feature);
+    char *msg = malloc(prefix_len + feature_len + 1);
+    if (msg == NULL) {
+        return wasmtime_error_new("out of memory");
+    }
+    memcpy(msg, prefix, prefix_len);
+    memcpy(msg + prefix_len, feature, feature_len);
+    msg[prefix_len + feature_len] = '\0';
+    wasmtime_error_t *err = wasmtime_error_new(msg);
+    free(msg);
+    return err;
+}
+
+wasmtime_error_t *go_component_linker_add_wasip3(
+    wasmtime_component_linker_t *linker
+) {
+#if defined(WASMTIME_FEATURE_WASI) && defined(WASMTIME_FEATURE_COMPONENT_MODEL_ASYNC)
+    return wasmtime_component_linker_add_wasip3(linker);
+#else
+    (void) linker;
+    return go_unsupported_feature_error("wasi-p3");
+#endif
+}
+
+wasmtime_error_t *go_component_linker_add_wasi_http(
+    wasmtime_component_linker_t *linker
+) {
+#if defined(WASMTIME_FEATURE_WASI_HTTP)
+    return wasmtime_component_linker_add_wasi_http(linker);
+#else
+    (void) linker;
+    return go_unsupported_feature_error("wasi-http");
+#endif
+}
+
+void go_config_async_support_set(wasm_config_t *config, bool enabled) {
+    (void) config;
+    (void) enabled;
+}
+
+void go_config_wasm_component_model_error_context_set(wasm_config_t *config, bool enabled) {
+    (void) config;
+    (void) enabled;
+}
+
+void go_config_wasm_component_model_async_stackful_set(wasm_config_t *config, bool enabled) {
+    (void) config;
+    (void) enabled;
+}
+
+void go_config_wasm_component_model_async_builtins_set(wasm_config_t *config, bool enabled) {
+    (void) config;
+    (void) enabled;
+}
+
+void go_wasmtime_context_set_wasi_http(wasmtime_context_t *context) {
+#if defined(WASMTIME_FEATURE_WASI_HTTP)
+    wasmtime_context_set_wasi_http(context);
+#else
+    (void) context;
+#endif
+}
+
+void go_wasi_config_inherit_network(wasi_config_t *config) {
+    (void) config;
 }
 
 // Component item union accessors

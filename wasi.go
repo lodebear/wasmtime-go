@@ -1,6 +1,7 @@
 package wasmtime
 
 // #include <wasi.h>
+// #include "shims.h"
 // #include <stdlib.h>
 import "C"
 import (
@@ -100,6 +101,50 @@ func (c *WasiConfig) InheritEnv() {
 	runtime.KeepAlive(c)
 }
 
+type WasiPathPolicyRule struct {
+	Path          string
+	AllowChildren bool
+	AllowCreate   bool
+	Support       bool
+	Deny          bool
+}
+
+// SetFilesystemPathPolicy configures a host-side filesystem authorization policy
+// for WASI preview2 filesystem operations.
+func (c *WasiConfig) SetFilesystemPathPolicy(rules []WasiPathPolicyRule, ancestorAllow []string) error {
+	C.wasi_config_clear_fs_policy(c.ptr())
+	runtime.KeepAlive(c)
+
+	for _, rule := range rules {
+		pathC := C.CString(rule.Path)
+		ok := C.wasi_config_add_fs_policy_rule(
+			c.ptr(),
+			pathC,
+			C.bool(rule.AllowChildren),
+			C.bool(rule.AllowCreate),
+			C.bool(rule.Support),
+			C.bool(rule.Deny),
+		)
+		runtime.KeepAlive(c)
+		C.free(unsafe.Pointer(pathC))
+		if !ok {
+			return errors.New("failed to add filesystem policy rule")
+		}
+	}
+
+	for _, path := range ancestorAllow {
+		pathC := C.CString(path)
+		ok := C.wasi_config_add_fs_policy_ancestor(c.ptr(), pathC)
+		runtime.KeepAlive(c)
+		C.free(unsafe.Pointer(pathC))
+		if !ok {
+			return errors.New("failed to add filesystem policy ancestor")
+		}
+	}
+
+	return nil
+}
+
 func (c *WasiConfig) SetStdinFile(path string) error {
 	pathC := C.CString(path)
 	ok := C.wasi_config_set_stdin_file(c.ptr(), pathC)
@@ -110,6 +155,22 @@ func (c *WasiConfig) SetStdinFile(path string) error {
 	}
 
 	return errors.New("failed to open file")
+}
+
+// SetStdinBytes configures stdin from an in-memory byte slice.
+//
+// This is useful when the embedding host already has stdin buffered and wants
+// to avoid writing temporary files.
+func (c *WasiConfig) SetStdinBytes(data []byte) {
+	var vec C.wasm_byte_vec_t
+	C.wasm_byte_vec_new_uninitialized(&vec, C.size_t(len(data)))
+	if len(data) > 0 {
+		dst := unsafe.Slice((*byte)(unsafe.Pointer(vec.data)), len(data))
+		copy(dst, data)
+	}
+	C.wasi_config_set_stdin_bytes(c.ptr(), &vec)
+	runtime.KeepAlive(c)
+	runtime.KeepAlive(data)
 }
 
 func (c *WasiConfig) InheritStdin() {
@@ -154,7 +215,7 @@ func (c *WasiConfig) InheritStderr() {
 // InheritNetwork configures the WASI network to be inherited from the host.
 // This enables WASI programs to use TCP, UDP, and DNS resolution.
 func (c *WasiConfig) InheritNetwork() {
-	C.wasi_config_inherit_network(c.ptr())
+	C.go_wasi_config_inherit_network(c.ptr())
 	runtime.KeepAlive(c)
 }
 

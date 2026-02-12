@@ -142,7 +142,7 @@ func (l *ComponentLinker) AddWasip2() error {
 // This requires the component-model-async feature to be enabled in
 // the engine configuration.
 func (l *ComponentLinker) AddWasip3() error {
-	err := C.wasmtime_component_linker_add_wasip3(l.ptr())
+	err := C.go_component_linker_add_wasip3(l.ptr())
 	runtime.KeepAlive(l)
 	if err != nil {
 		return mkError(err)
@@ -153,7 +153,7 @@ func (l *ComponentLinker) AddWasip3() error {
 // AddWasiHttp adds WASI HTTP interfaces to the linker.
 // This enables components to make outbound HTTP requests using wasi:http.
 func (l *ComponentLinker) AddWasiHttp() error {
-	err := C.wasmtime_component_linker_add_wasi_http(l.ptr())
+	err := C.go_component_linker_add_wasi_http(l.ptr())
 	runtime.KeepAlive(l)
 	if err != nil {
 		return mkError(err)

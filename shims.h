@@ -30,6 +30,7 @@ void go_wasi_config_set_stderr_custom(wasi_config_t *config, size_t env);
   \
   UNION_ACCESSOR(wasmtime_extern, func, wasmtime_func_t) \
   UNION_ACCESSOR(wasmtime_extern, memory, wasmtime_memory_t) \
+  UNION_ACCESSOR(wasmtime_extern, sharedmemory, wasmtime_sharedmemory_t*) \
   UNION_ACCESSOR(wasmtime_extern, table, wasmtime_table_t) \
   UNION_ACCESSOR(wasmtime_extern, global, wasmtime_global_t)
 
@@ -173,3 +174,23 @@ wasmtime_error_t *go_component_linker_instance_add_resource(
     const wasmtime_component_resource_type_t *resource,
     size_t env
 );
+
+// Component linker: optional WASI helpers whose availability differs between
+// Wasmtime builds.
+wasmtime_error_t *go_component_linker_add_wasip3(
+    wasmtime_component_linker_t *linker
+);
+
+wasmtime_error_t *go_component_linker_add_wasi_http(
+    wasmtime_component_linker_t *linker
+);
+
+// Config compatibility helpers for optional/removed C API setters.
+void go_config_async_support_set(wasm_config_t *config, bool enabled);
+void go_config_wasm_component_model_error_context_set(wasm_config_t *config, bool enabled);
+void go_config_wasm_component_model_async_stackful_set(wasm_config_t *config, bool enabled);
+void go_config_wasm_component_model_async_builtins_set(wasm_config_t *config, bool enabled);
+
+void go_wasmtime_context_set_wasi_http(wasmtime_context_t *context);
+
+void go_wasi_config_inherit_network(wasi_config_t *config);

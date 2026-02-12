@@ -2,6 +2,7 @@ package wasmtime
 
 // #include <wasm.h>
 // #include <wasmtime.h>
+// #include "shims.h"
 // #include <stdlib.h>
 import "C"
 import (
@@ -74,6 +75,12 @@ func (cfg *Config) SetMaxWasmStack(size int) {
 // SetWasmThreads configures whether the wasm threads proposal is enabled
 func (cfg *Config) SetWasmThreads(enabled bool) {
 	C.wasmtime_config_wasm_threads_set(cfg.ptr(), C.bool(enabled))
+	runtime.KeepAlive(cfg)
+}
+
+// SetSharedMemory configures whether shared memories are enabled.
+func (cfg *Config) SetSharedMemory(enabled bool) {
+	C.wasmtime_config_shared_memory_set(cfg.ptr(), C.bool(enabled))
 	runtime.KeepAlive(cfg)
 }
 
@@ -161,7 +168,7 @@ func (cfg *Config) SetWasmComponentModel(enabled bool) {
 // This is deprecated in newer wasmtime versions but may still be needed
 // for compatibility.
 func (cfg *Config) SetAsyncSupport(enabled bool) {
-	C.wasmtime_config_async_support_set(cfg.ptr(), C.bool(enabled))
+	C.go_config_async_support_set(cfg.ptr(), C.bool(enabled))
 	runtime.KeepAlive(cfg)
 }
 
@@ -178,7 +185,7 @@ func (cfg *Config) SetWasmComponentModelAsync(enabled bool) {
 // error-context types in the component model. Requires the
 // component-model-async feature to be enabled.
 func (cfg *Config) SetWasmComponentModelErrorContext(enabled bool) {
-	C.wasmtime_config_wasm_component_model_error_context_set(cfg.ptr(), C.bool(enabled))
+	C.go_config_wasm_component_model_error_context_set(cfg.ptr(), C.bool(enabled))
 	runtime.KeepAlive(cfg)
 }
 
@@ -187,7 +194,7 @@ func (cfg *Config) SetWasmComponentModelErrorContext(enabled bool) {
 // stackful coroutines in the component model async proposal, allowing
 // components to use thread.spawn and thread.yield.
 func (cfg *Config) SetWasmComponentModelAsyncStackful(enabled bool) {
-	C.wasmtime_config_wasm_component_model_async_stackful_set(cfg.ptr(), C.bool(enabled))
+	C.go_config_wasm_component_model_async_stackful_set(cfg.ptr(), C.bool(enabled))
 	runtime.KeepAlive(cfg)
 }
 
@@ -195,7 +202,7 @@ func (cfg *Config) SetWasmComponentModelAsyncStackful(enabled bool) {
 // component model async builtins feature is enabled. This enables support for
 // async builtin operations like subtask.cancel in the component model.
 func (cfg *Config) SetWasmComponentModelAsyncBuiltins(enabled bool) {
-	C.wasmtime_config_wasm_component_model_async_builtins_set(cfg.ptr(), C.bool(enabled))
+	C.go_config_wasm_component_model_async_builtins_set(cfg.ptr(), C.bool(enabled))
 	runtime.KeepAlive(cfg)
 }
 

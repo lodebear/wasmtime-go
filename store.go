@@ -321,7 +321,7 @@ func (store *Store) SetFuel(fuel uint64) error {
 // This must be called before using any WASI HTTP interfaces. The store
 // must also have WASI configured via SetWasi before calling this method.
 func (store *Store) SetWasiHttp() {
-	C.wasmtime_context_set_wasi_http(store.Context())
+	C.go_wasmtime_context_set_wasi_http(store.Context())
 	runtime.KeepAlive(store)
 }
 
