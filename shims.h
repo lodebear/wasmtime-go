@@ -166,6 +166,25 @@ wasmtime_error_t *go_component_linker_instance_add_func_async(
     size_t env
 );
 
+// Component async compatibility shims.
+wasmtime_call_future_t *go_component_linker_instantiate_async(
+    const wasmtime_component_linker_t *linker,
+    wasmtime_context_t *context,
+    const wasmtime_component_t *component,
+    wasmtime_component_instance_t *instance_out,
+    wasmtime_error_t **error_ret
+);
+
+wasmtime_call_future_t *go_component_func_call_async(
+    const wasmtime_component_func_t *func,
+    wasmtime_context_t *context,
+    const wasmtime_component_val_t *args,
+    size_t args_size,
+    wasmtime_component_val_t *results,
+    size_t results_size,
+    wasmtime_error_t **error_ret
+);
+
 // Component linker: add_resource with destructor Go callback trampoline
 wasmtime_error_t *go_component_linker_instance_add_resource(
     wasmtime_component_linker_instance_t *linker_instance,
@@ -187,6 +206,7 @@ wasmtime_error_t *go_component_linker_add_wasi_http(
 
 // Config compatibility helpers for optional/removed C API setters.
 void go_config_async_support_set(wasm_config_t *config, bool enabled);
+void go_config_wasm_component_model_async_set(wasm_config_t *config, bool enabled);
 void go_config_wasm_component_model_error_context_set(wasm_config_t *config, bool enabled);
 void go_config_wasm_component_model_async_stackful_set(wasm_config_t *config, bool enabled);
 void go_config_wasm_component_model_async_builtins_set(wasm_config_t *config, bool enabled);

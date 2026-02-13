@@ -101,50 +101,6 @@ func (c *WasiConfig) InheritEnv() {
 	runtime.KeepAlive(c)
 }
 
-type WasiPathPolicyRule struct {
-	Path          string
-	AllowChildren bool
-	AllowCreate   bool
-	Support       bool
-	Deny          bool
-}
-
-// SetFilesystemPathPolicy configures a host-side filesystem authorization policy
-// for WASI preview2 filesystem operations.
-func (c *WasiConfig) SetFilesystemPathPolicy(rules []WasiPathPolicyRule, ancestorAllow []string) error {
-	C.wasi_config_clear_fs_policy(c.ptr())
-	runtime.KeepAlive(c)
-
-	for _, rule := range rules {
-		pathC := C.CString(rule.Path)
-		ok := C.wasi_config_add_fs_policy_rule(
-			c.ptr(),
-			pathC,
-			C.bool(rule.AllowChildren),
-			C.bool(rule.AllowCreate),
-			C.bool(rule.Support),
-			C.bool(rule.Deny),
-		)
-		runtime.KeepAlive(c)
-		C.free(unsafe.Pointer(pathC))
-		if !ok {
-			return errors.New("failed to add filesystem policy rule")
-		}
-	}
-
-	for _, path := range ancestorAllow {
-		pathC := C.CString(path)
-		ok := C.wasi_config_add_fs_policy_ancestor(c.ptr(), pathC)
-		runtime.KeepAlive(c)
-		C.free(unsafe.Pointer(pathC))
-		if !ok {
-			return errors.New("failed to add filesystem policy ancestor")
-		}
-	}
-
-	return nil
-}
-
 func (c *WasiConfig) SetStdinFile(path string) error {
 	pathC := C.CString(path)
 	ok := C.wasi_config_set_stdin_file(c.ptr(), pathC)

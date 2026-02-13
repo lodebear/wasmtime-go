@@ -2,10 +2,12 @@ package wasmtime
 
 // #include <wasmtime/component.h>
 // #include <wasmtime/async.h>
+// #include "shims.h"
 // #include <stdlib.h>
 import "C"
 
 import (
+	"errors"
 	"runtime"
 	"unsafe"
 )
@@ -125,7 +127,7 @@ func (f *ComponentFunc) CallAsync(store Storelike, args []ComponentVal) ([]Compo
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	future := C.wasmtime_component_func_call_async(
+	future := C.go_component_func_call_async(
 		&f.val,
 		store.Context(),
 		cArgs,
@@ -134,6 +136,15 @@ func (f *ComponentFunc) CallAsync(store Storelike, args []ComponentVal) ([]Compo
 		C.size_t(nResults),
 		&errRet,
 	)
+	if future == nil {
+		runtime.KeepAlive(store)
+		runtime.KeepAlive(args)
+		runtime.KeepAlive(f)
+		if errRet != nil {
+			return nil, mkError(errRet)
+		}
+		return nil, errors.New("component async call is not supported by linked Wasmtime")
+	}
 	defer C.wasmtime_call_future_delete(future)
 
 	// Poll the future to completion

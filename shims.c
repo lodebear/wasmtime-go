@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+static wasmtime_error_t *go_unsupported_feature_error(const char *feature);
+
 wasmtime_store_t *go_store_new(wasm_engine_t *engine, size_t env) {
   return wasmtime_store_new(engine, (void*) env, goFinalizeStore);
 }
@@ -248,10 +250,18 @@ wasmtime_error_t *go_component_linker_instance_add_func_async(
     size_t name_len,
     size_t env
 ) {
+#if defined(WASMTIME_FEATURE_ASYNC) && defined(WASMTIME_FEATURE_COMPONENT_MODEL_ASYNC)
     return wasmtime_component_linker_instance_add_func_async(
         linker_instance, name, name_len,
         component_func_async_trampoline, (void*) env,
         goFinalizeComponentFunc);
+#else
+    (void) linker_instance;
+    (void) name;
+    (void) name_len;
+    (void) env;
+    return go_unsupported_feature_error("component-linker-add-func-async");
+#endif
 }
 
 static wasmtime_error_t *component_resource_dtor_trampoline(
@@ -292,6 +302,66 @@ static wasmtime_error_t *go_unsupported_feature_error(const char *feature) {
     return err;
 }
 
+wasmtime_call_future_t *go_component_linker_instantiate_async(
+    const wasmtime_component_linker_t *linker,
+    wasmtime_context_t *context,
+    const wasmtime_component_t *component,
+    wasmtime_component_instance_t *instance_out,
+    wasmtime_error_t **error_ret
+) {
+#if defined(WASMTIME_FEATURE_ASYNC) && defined(WASMTIME_FEATURE_COMPONENT_MODEL_ASYNC)
+    return wasmtime_component_linker_instantiate_async(
+        linker,
+        context,
+        component,
+        instance_out,
+        error_ret
+    );
+#else
+    (void) linker;
+    (void) context;
+    (void) component;
+    (void) instance_out;
+    if (error_ret != NULL) {
+        *error_ret = go_unsupported_feature_error("component-linker-instantiate-async");
+    }
+    return NULL;
+#endif
+}
+
+wasmtime_call_future_t *go_component_func_call_async(
+    const wasmtime_component_func_t *func,
+    wasmtime_context_t *context,
+    const wasmtime_component_val_t *args,
+    size_t args_size,
+    wasmtime_component_val_t *results,
+    size_t results_size,
+    wasmtime_error_t **error_ret
+) {
+#if defined(WASMTIME_FEATURE_ASYNC) && defined(WASMTIME_FEATURE_COMPONENT_MODEL_ASYNC)
+    return wasmtime_component_func_call_async(
+        func,
+        context,
+        args,
+        args_size,
+        results,
+        results_size,
+        error_ret
+    );
+#else
+    (void) func;
+    (void) context;
+    (void) args;
+    (void) args_size;
+    (void) results;
+    (void) results_size;
+    if (error_ret != NULL) {
+        *error_ret = go_unsupported_feature_error("component-func-call-async");
+    }
+    return NULL;
+#endif
+}
+
 wasmtime_error_t *go_component_linker_add_wasip3(
     wasmtime_component_linker_t *linker
 ) {
@@ -317,6 +387,15 @@ wasmtime_error_t *go_component_linker_add_wasi_http(
 void go_config_async_support_set(wasm_config_t *config, bool enabled) {
     (void) config;
     (void) enabled;
+}
+
+void go_config_wasm_component_model_async_set(wasm_config_t *config, bool enabled) {
+#if defined(WASMTIME_FEATURE_COMPONENT_MODEL_ASYNC)
+    wasmtime_config_wasm_component_model_async_set(config, enabled);
+#else
+    (void) config;
+    (void) enabled;
+#endif
 }
 
 void go_config_wasm_component_model_error_context_set(wasm_config_t *config, bool enabled) {

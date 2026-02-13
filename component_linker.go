@@ -5,7 +5,10 @@ package wasmtime
 // #include "shims.h"
 import "C"
 
-import "runtime"
+import (
+	"errors"
+	"runtime"
+)
 
 // ComponentLinker implements linking for the WebAssembly Component Model,
 // which can link component instances together and provide host function
@@ -105,13 +108,22 @@ func (l *ComponentLinker) InstantiateAsync(store Storelike, component *Component
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	future := C.wasmtime_component_linker_instantiate_async(
+	future := C.go_component_linker_instantiate_async(
 		l.ptr(),
 		store.Context(),
 		component.ptr(),
 		&ret,
 		&errRet,
 	)
+	if future == nil {
+		runtime.KeepAlive(l)
+		runtime.KeepAlive(store)
+		runtime.KeepAlive(component)
+		if errRet != nil {
+			return nil, mkError(errRet)
+		}
+		return nil, errors.New("component async instantiation is not supported by linked Wasmtime")
+	}
 	defer C.wasmtime_call_future_delete(future)
 
 	for !C.wasmtime_call_future_poll(future) {

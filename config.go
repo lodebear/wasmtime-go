@@ -176,7 +176,7 @@ func (cfg *Config) SetAsyncSupport(enabled bool) {
 // model async proposal is enabled. This enables support for the async ABI
 // including future, stream, and error-context types.
 func (cfg *Config) SetWasmComponentModelAsync(enabled bool) {
-	C.wasmtime_config_wasm_component_model_async_set(cfg.ptr(), C.bool(enabled))
+	C.go_config_wasm_component_model_async_set(cfg.ptr(), C.bool(enabled))
 	runtime.KeepAlive(cfg)
 }
 

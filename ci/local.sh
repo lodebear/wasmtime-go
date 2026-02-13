@@ -32,4 +32,16 @@ done
 
 cp "$wasmtime"/crates/c-api/include/*.h build/include
 cp -r "$wasmtime"/crates/c-api/include/wasmtime build/include
-cp "$wasmtime"/crates/c-api/wasm-c-api/include/*.h build/include
+if compgen -G "$wasmtime/crates/c-api/wasm-c-api/include/*.h" > /dev/null; then
+  cp "$wasmtime"/crates/c-api/wasm-c-api/include/*.h build/include
+fi
+
+generated_include=$(find "$wasmtime/target/release/build" "$wasmtime/target/debug/build" -type d -path "*/wasmtime-c-api-impl-*/out/include" 2>/dev/null | head -n 1)
+if [ -n "$generated_include" ]; then
+  cp -R "$generated_include"/* build/include/
+fi
+
+if [ ! -f build/include/wasmtime/conf.h ]; then
+  echo "Missing generated header build/include/wasmtime/conf.h"
+  exit 1
+fi
