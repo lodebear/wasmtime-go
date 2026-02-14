@@ -50,6 +50,35 @@ func TestInstance(t *testing.T) {
 	require.Equal(t, uint64(1), exports[3].Type(store).MemoryType().Minimum())
 }
 
+func TestInstanceSharedMemoryExport(t *testing.T) {
+	wasm, err := Wat2Wasm(`
+          (module
+            (memory (export "m") 1 2 shared)
+          )
+        `)
+	require.NoError(t, err)
+
+	cfg := NewConfig()
+	cfg.SetWasmThreads(true)
+	cfg.SetSharedMemory(true)
+	engine := NewEngineWithConfig(cfg)
+	store := NewStore(engine)
+
+	module, err := NewModule(engine, wasm)
+	require.NoError(t, err)
+	instance, err := NewInstance(store, module, []AsExtern{})
+	require.NoError(t, err)
+
+	export := instance.GetExport(store, "m")
+	require.NotNil(t, export)
+	require.Nil(t, export.Memory())
+
+	shared := export.SharedMemory()
+	require.NotNil(t, shared)
+	require.Equal(t, uint64(1), shared.Size())
+	require.True(t, shared.Type().IsShared())
+}
+
 func TestInstanceBad(t *testing.T) {
 	store := NewStore(NewEngine())
 	wasm, err := Wat2Wasm(`(module (import "" "" (func)))`)

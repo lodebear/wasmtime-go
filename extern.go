@@ -76,13 +76,24 @@ func (e *Extern) Global() *Global {
 	return ret
 }
 
-// Memory returns a Memory if this export is a memory or nil otherwise
+// Memory returns a Memory if this export is an unshared memory, or nil otherwise.
 func (e *Extern) Memory() *Memory {
 	ptr := e.ptr()
 	if ptr.kind != C.WASMTIME_EXTERN_MEMORY {
 		return nil
 	}
 	ret := mkMemory(C.go_wasmtime_extern_memory_get(ptr))
+	runtime.KeepAlive(e)
+	return ret
+}
+
+// SharedMemory returns a SharedMemory if this export is a shared memory, or nil otherwise.
+func (e *Extern) SharedMemory() *SharedMemory {
+	ptr := e.ptr()
+	if ptr.kind != C.WASMTIME_EXTERN_SHAREDMEMORY {
+		return nil
+	}
+	ret := mkSharedMemory(C.go_wasmtime_extern_sharedmemory_get(ptr), false)
 	runtime.KeepAlive(e)
 	return ret
 }
