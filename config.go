@@ -150,6 +150,13 @@ func (cfg *Config) SetWasmGC(enabled bool) {
 	runtime.KeepAlive(cfg)
 }
 
+// SetWasmExceptions configures whether the WebAssembly exception-handling
+// proposal is enabled.
+func (cfg *Config) SetWasmExceptions(enabled bool) {
+	C.wasmtime_config_wasm_exceptions_set(cfg.ptr(), C.bool(enabled))
+	runtime.KeepAlive(cfg)
+}
+
 // SetWasmWideArithmetic configures whether wide arithmetic is enabled
 func (cfg *Config) SetWasmWideArithmetic(enabled bool) {
 	C.wasmtime_config_wasm_wide_arithmetic_set(cfg.ptr(), C.bool(enabled))
