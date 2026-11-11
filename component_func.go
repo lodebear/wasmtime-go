@@ -30,18 +30,23 @@ func (f *ComponentFunc) Call(store Storelike, args []ComponentVal) ([]ComponentV
 	defer funcType.Close()
 	nResults := funcType.ResultArity()
 
-	// Allocate C results array
+	// The C API assigns Rust enum values into these slots, which drops the
+	// previous value. Zero-initialize each slot as the valid Bool(false) value.
 	var cResults *C.wasmtime_component_val_t
+	resultsInitialized := false
 	if nResults > 0 {
-		cResults = (*C.wasmtime_component_val_t)(C.malloc(
-			C.size_t(nResults) * C.size_t(unsafe.Sizeof(C.wasmtime_component_val_t{})),
+		cResults = (*C.wasmtime_component_val_t)(C.calloc(
+			C.size_t(nResults), C.size_t(unsafe.Sizeof(C.wasmtime_component_val_t{})),
 		))
 		defer func() {
-			for i := 0; i < nResults; i++ {
-				elemPtr := (*C.wasmtime_component_val_t)(unsafe.Pointer(
-					uintptr(unsafe.Pointer(cResults)) + uintptr(i)*unsafe.Sizeof(C.wasmtime_component_val_t{}),
-				))
-				C.wasmtime_component_val_delete(elemPtr)
+			// Only a successful call replaces the placeholders with results.
+			if resultsInitialized {
+				for i := 0; i < nResults; i++ {
+					elemPtr := (*C.wasmtime_component_val_t)(unsafe.Pointer(
+						uintptr(unsafe.Pointer(cResults)) + uintptr(i)*unsafe.Sizeof(C.wasmtime_component_val_t{}),
+					))
+					C.wasmtime_component_val_delete(elemPtr)
+				}
 			}
 			C.free(unsafe.Pointer(cResults))
 		}()
@@ -63,6 +68,7 @@ func (f *ComponentFunc) Call(store Storelike, args []ComponentVal) ([]ComponentV
 	if err != nil {
 		return nil, mkError(err)
 	}
+	resultsInitialized = true
 
 	// Unmarshal C results to Go (copies all data to Go-owned memory)
 	results := componentValsFromC(cResults, C.size_t(nResults))
@@ -102,18 +108,22 @@ func (f *ComponentFunc) CallAsync(store Storelike, args []ComponentVal) ([]Compo
 	defer funcType.Close()
 	nResults := funcType.ResultArity()
 
-	// Allocate C results array
+	// Initialize result slots as Bool(false), as in Call.
 	var cResults *C.wasmtime_component_val_t
+	resultsInitialized := false
 	if nResults > 0 {
-		cResults = (*C.wasmtime_component_val_t)(C.malloc(
-			C.size_t(nResults) * C.size_t(unsafe.Sizeof(C.wasmtime_component_val_t{})),
+		cResults = (*C.wasmtime_component_val_t)(C.calloc(
+			C.size_t(nResults), C.size_t(unsafe.Sizeof(C.wasmtime_component_val_t{})),
 		))
 		defer func() {
-			for i := 0; i < nResults; i++ {
-				elemPtr := (*C.wasmtime_component_val_t)(unsafe.Pointer(
-					uintptr(unsafe.Pointer(cResults)) + uintptr(i)*unsafe.Sizeof(C.wasmtime_component_val_t{}),
-				))
-				C.wasmtime_component_val_delete(elemPtr)
+			// Failed and unsupported calls leave the placeholders unchanged.
+			if resultsInitialized {
+				for i := 0; i < nResults; i++ {
+					elemPtr := (*C.wasmtime_component_val_t)(unsafe.Pointer(
+						uintptr(unsafe.Pointer(cResults)) + uintptr(i)*unsafe.Sizeof(C.wasmtime_component_val_t{}),
+					))
+					C.wasmtime_component_val_delete(elemPtr)
+				}
 			}
 			C.free(unsafe.Pointer(cResults))
 		}()
@@ -158,6 +168,7 @@ func (f *ComponentFunc) CallAsync(store Storelike, args []ComponentVal) ([]Compo
 	if errRet != nil {
 		return nil, mkError(errRet)
 	}
+	resultsInitialized = true
 
 	// Unmarshal C results to Go
 	results := componentValsFromC(cResults, C.size_t(nResults))
